@@ -13,29 +13,30 @@ const db = mysql.createConnection({
 // GET - Usuarios (opcional ?rol=admin|profesor|tutor|alumno)
 router.get('/', (req, res) => {
   const { rol } = req.query
-  if (rol) {
-    // Profesores: incluir materias si existe tabla
-    if (rol === 'profesor') {
-      const sql = `
-        SELECT u.*, GROUP_CONCAT(p.materia SEPARATOR ', ') AS materias
-        FROM usuarios u
-        LEFT JOIN Profesores p ON p.idUsuarioProfesor = u.idUsuario
-        WHERE u.tipo_usuario = ?
-        GROUP BY u.idUsuario
-      `
-      return db.query(sql, [rol], (err, results) => {
-        if (err) return res.status(500).json({ error: err.message })
-        return res.json(results)
-      })
-    }
-    return db.query('SELECT * FROM usuarios WHERE tipo_usuario = ?', [rol], (err, results) => {
+  if (rol === 'profesor') {
+    const sql = `
+      SELECT u.*, GROUP_CONCAT(p.materia SEPARATOR ', ') AS materias
+      FROM usuarios u
+      LEFT JOIN Profesores p ON p.idUsuarioProfesor = u.idUsuario
+      WHERE u.tipo_usuario = ?
+      GROUP BY u.idUsuario
+    `
+    db.query(sql, [rol], (err, results) => {
       if (err) return res.status(500).json({ error: err.message })
       return res.json(results)
     })
+    return
+  }
+  if (rol) {
+    db.query('SELECT * FROM usuarios WHERE tipo_usuario = ?', [rol], (err, results) => {
+      if (err) return res.status(500).json({ error: err.message })
+      return res.json(results)
+    })
+    return
   }
   db.query('SELECT * FROM usuarios', (err, results) => {
     if (err) return res.status(500).json({ error: err.message })
-    res.json(results)
+    return res.json(results)
   })
 })
 

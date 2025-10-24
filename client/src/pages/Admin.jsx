@@ -61,20 +61,18 @@ export default function Admin() {
           columns: [
             { field: 'idAlumno', header: 'ID' },
             { field: 'nombre', header: 'Nombre' },
+            { field: 'Ap', header: 'Ap' },
+            { field: 'Am', header: 'Am' },
             { field: 'apellido', header: 'Apellido' },
-            { field: 'matricula', header: 'Matrícula' },
-            { field: 'grupo', header: 'Grupo' }
+            { field: 'grupo', header: 'Grupo' },
+            { field: 'calle', header: 'Calle' },
+            { field: 'colonia', header: 'Colonia' },
+            { field: 'numero', header: 'Número' },
+            { field: 'cp', header: 'CP' },
+            { field: 'telefono', header: 'Teléfono' },
+            { field: 'email', header: 'Email' }
           ],
-          fields: [
-            { name: 'nombre', label: 'Nombre', required: true },
-            { name: 'apellido', label: 'Apellido', required: true },
-            { name: 'matricula', label: 'Matrícula', required: true },
-            { name: 'fechaNacimiento', label: 'Fecha Nacimiento', type: 'date' },
-            { name: 'direccion', label: 'Dirección' },
-            { name: 'telefono', label: 'Teléfono' },
-            { name: 'idGrupo', label: 'ID Grupo', type: 'number' },
-            { name: 'idTutor', label: 'ID Tutor', type: 'number' }
-          ],
+          fields: [],
           idField: 'idAlumno'
         }
       case 'tutores':
@@ -82,18 +80,17 @@ export default function Admin() {
           columns: [
             { field: 'idTutor', header: 'ID' },
             { field: 'nombre', header: 'Nombre' },
+            { field: 'Ap', header: 'Ap' },
+            { field: 'Am', header: 'Am' },
             { field: 'apellido', header: 'Apellido' },
+            { field: 'calle', header: 'Calle' },
+            { field: 'colonia', header: 'Colonia' },
+            { field: 'numero', header: 'Número' },
+            { field: 'cp', header: 'CP' },
             { field: 'telefono', header: 'Teléfono' },
             { field: 'email', header: 'Email' }
           ],
-          fields: [
-            { name: 'nombre', label: 'Nombre', required: true },
-            { name: 'apellido', label: 'Apellido', required: true },
-            { name: 'telefono', label: 'Teléfono', required: true },
-            { name: 'email', label: 'Email', type: 'email', required: true },
-            { name: 'direccion', label: 'Dirección' },
-            { name: 'ocupacion', label: 'Ocupación' }
-          ],
+          fields: [],
           idField: 'idTutor'
         }
       case 'grupos':

@@ -14,7 +14,7 @@ export default function AltaAlumnoForm() {
     calle: '', colonia: '', numero: '', cp: '', telefono: '',
     email: '', password: ''
   })
-  const [alumno, setAlumno] = useState({ idGrupo: 1 })
+  const [alumno, setAlumno] = useState({ idGrupo: 1, turno: 'matutino' })
   const [tutorMode, setTutorMode] = useState('existente') // 'existente' | 'nuevo'
   const [tutorEmail, setTutorEmail] = useState('')
   const [tutorUsuario, setTutorUsuario] = useState({
@@ -72,6 +72,10 @@ export default function AltaAlumnoForm() {
             <input className="input" placeholder="Email" type="email" value={alumnoUsuario.email} onChange={e=>setAlumnoUsuario({...alumnoUsuario, email:e.target.value})} />
             <input className="input" placeholder="Contraseña" type="password" value={alumnoUsuario.password} onChange={e=>setAlumnoUsuario({...alumnoUsuario, password:e.target.value})} />
             <input className="input" placeholder="ID Grupo" type="number" value={alumno.idGrupo} onChange={e=>setAlumno({...alumno, idGrupo: Number(e.target.value)})} />
+            <select className="input" value={alumno.turno} onChange={e=>setAlumno({...alumno, turno: e.target.value})}>
+              <option value="matutino">Matutino</option>
+              <option value="vespertino">Vespertino</option>
+            </select>
           </div>
           <div className="flex justify-end">
             <button className="btn" onClick={()=>setStep(2)}>Siguiente</button>

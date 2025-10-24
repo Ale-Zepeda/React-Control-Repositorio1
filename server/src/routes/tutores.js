@@ -15,7 +15,10 @@ router.get('/', (req, res) => {
     SELECT 
       t.idTutor,
       u.nombre AS nombre,
+      u.Ap AS Ap,
+      u.Am AS Am,
       CONCAT(IFNULL(u.Ap,''), ' ', IFNULL(u.Am,'')) AS apellido,
+      u.calle, u.colonia, u.numero, u.cp,
       u.telefono AS telefono,
       u.email AS email,
       t.idAlumno

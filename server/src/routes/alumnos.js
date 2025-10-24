@@ -15,11 +15,14 @@ router.get('/', (req, res) => {
     SELECT 
       a.idAlumnos AS idAlumno,
       u.nombre AS nombre,
+      u.Ap AS Ap,
+      u.Am AS Am,
       CONCAT(IFNULL(u.Ap,''), ' ', IFNULL(u.Am,'')) AS apellido,
       '' AS matricula,
       a.idGrupo AS grupo,
-      u.email AS email,
-      u.telefono AS telefono
+      u.calle, u.colonia, u.numero, u.cp,
+      u.telefono AS telefono,
+      u.email AS email
     FROM alumnos a
     JOIN usuarios u ON u.idUsuario = a.idUsuarios
     LEFT JOIN grupo g ON g.idGrupo = a.idGrupo
