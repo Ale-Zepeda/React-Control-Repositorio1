@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 
@@ -8,13 +8,19 @@ export default function AltaAlumnoForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [grupos, setGrupos] = useState([])
+  const [especialidades, setEspecialidades] = useState([])
 
   const [alumnoUsuario, setAlumnoUsuario] = useState({
     nombre: '', Ap: '', Am: '',
     calle: '', colonia: '', numero: '', cp: '', telefono: '',
-    email: '', password: ''
+    email: '', password: '', genero: '', curp: ''
   })
-  const [alumno, setAlumno] = useState({ idGrupo: 1, turno: 'matutino' })
+  const [alumno, setAlumno] = useState({ 
+    especialidad: '',
+    semestre: '',
+    turno: 'matutino'
+  })
   const [tutorMode, setTutorMode] = useState('existente') // 'existente' | 'nuevo'
   const [tutorEmail, setTutorEmail] = useState('')
   const [tutorUsuario, setTutorUsuario] = useState({
@@ -23,17 +29,61 @@ export default function AltaAlumnoForm() {
     email: '', password: ''
   })
 
+  // Cargar especialidades disponibles
+  useEffect(() => {
+    const loadEspecialidades = async () => {
+      try {
+        const res = await api('/api/grupos/especialidades', { token });
+        setEspecialidades(res || []);
+      } catch (e) {
+        console.error('Error cargando especialidades:', e.message || e);
+      }
+    }
+    if (token) {
+      loadEspecialidades();
+    }
+  }, [token]);
+
   const submit = async () => {
     setError('')
-    setLoading(true)
+    
     try {
+      // Validar datos del tutor antes de enviar
+      if (tutorMode === 'existente') {
+        if (!tutorEmail) {
+          setError('Por favor ingrese el email del tutor');
+          return;
+        }
+        if (!tutorEmail.includes('@')) {
+          setError('Por favor ingrese un email válido para el tutor');
+          return;
+        }
+      }
+      
+      if (tutorMode === 'nuevo') {
+        const camposRequeridosTutor = ['nombre', 'Ap', 'Am', 'email', 'password'];
+        const faltantesTutor = camposRequeridosTutor.filter(campo => !tutorUsuario[campo]);
+        if (faltantesTutor.length > 0) {
+          setError(`Por favor complete los siguientes campos del tutor: ${faltantesTutor.join(', ')}`);
+          return;
+        }
+        if (!tutorUsuario.email.includes('@')) {
+          setError('Por favor ingrese un email válido para el tutor');
+          return;
+        }
+      }
+
+      setLoading(true);
+
       const body = {
         alumnoUsuario,
         alumno,
         tutor: tutorMode === 'existente'
-          ? { mode: 'existente', email: tutorEmail }
-          : { mode: 'nuevo', usuario: tutorUsuario }
-      }
+          ? { email: tutorEmail }  // Para tutor existente solo enviamos el email
+          : { usuario: tutorUsuario }  // Para nuevo tutor enviamos todos los datos
+      };
+      
+      console.log('Enviando datos:', body); // Para depuración
       const resp = await api('/api/alumnos/alta-completa', { method: 'POST', body, token })
       setResult(resp)
       setStep(3)
@@ -69,16 +119,95 @@ export default function AltaAlumnoForm() {
             <input className="input" placeholder="Número" value={alumnoUsuario.numero} onChange={e=>setAlumnoUsuario({...alumnoUsuario, numero:e.target.value})} />
             <input className="input" placeholder="CP" type="number" value={alumnoUsuario.cp} onChange={e=>setAlumnoUsuario({...alumnoUsuario, cp:e.target.value})} />
             <input className="input" placeholder="Teléfono" type="number" value={alumnoUsuario.telefono} onChange={e=>setAlumnoUsuario({...alumnoUsuario, telefono:e.target.value})} />
+            <select
+              className="input"
+              value={alumnoUsuario.genero}
+              onChange={e => setAlumnoUsuario({...alumnoUsuario, genero: e.target.value})}
+              required
+            >
+              <option value="">Seleccionar Género</option>
+              <option value="femenino">Femenino</option>
+              <option value="masculino">Masculino</option>
+              <option value="otro">Otro</option>
+            </select>
+            <input 
+              className="input" 
+              placeholder="CURP" 
+              value={alumnoUsuario.curp || ''} 
+              onChange={e => {
+                const curp = e.target.value.toUpperCase();
+                if (curp === '' || /^[A-Z0-9]{0,18}$/.test(curp)) {
+                  setAlumnoUsuario({...alumnoUsuario, curp: curp})
+                }
+              }}
+              pattern="^[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[0-9A-Z][0-9]$"
+              title="CURP válida (18 caracteres). Por favor ingrese una CURP válida. Ejemplo: SABC901234HDFXYZ01"
+              maxLength={18}
+            />
             <input className="input" placeholder="Email" type="email" value={alumnoUsuario.email} onChange={e=>setAlumnoUsuario({...alumnoUsuario, email:e.target.value})} />
             <input className="input" placeholder="Contraseña" type="password" value={alumnoUsuario.password} onChange={e=>setAlumnoUsuario({...alumnoUsuario, password:e.target.value})} />
-            <input className="input" placeholder="ID Grupo" type="number" value={alumno.idGrupo} onChange={e=>setAlumno({...alumno, idGrupo: Number(e.target.value)})} />
-            <select className="input" value={alumno.turno} onChange={e=>setAlumno({...alumno, turno: e.target.value})}>
+            <select 
+              className="input" 
+              value={alumno.especialidad} 
+              onChange={e => setAlumno({...alumno, especialidad: e.target.value})}
+              required
+            >
+              <option value="">Seleccionar Especialidad</option>
+              {especialidades.map(esp => (
+                <option key={esp} value={esp}>{esp}</option>
+              ))}
+            </select>
+            <select 
+              className="input" 
+              value={alumno.semestre} 
+              onChange={e => setAlumno({...alumno, semestre: e.target.value})}
+              required
+            >
+              <option value="">Seleccionar Semestre</option>
+              <option value="1">1° Semestre</option>
+              <option value="2">2° Semestre</option>
+              <option value="3">3° Semestre</option>
+              <option value="4">4° Semestre</option>
+              <option value="5">5° Semestre</option>
+              <option value="6">6° Semestre</option>
+            </select>
+            <select 
+              className="input" 
+              value={alumno.turno} 
+              onChange={e => setAlumno({...alumno, turno: e.target.value})}
+              required
+            >
+              <option value="">Seleccionar Turno</option>
               <option value="matutino">Matutino</option>
               <option value="vespertino">Vespertino</option>
             </select>
           </div>
-          <div className="flex justify-end">
-            <button className="btn" onClick={()=>setStep(2)}>Siguiente</button>
+          <div className="flex justify-end space-x-4 mt-4">
+            <button 
+              className="btn"
+              onClick={() => {
+                // Validar campos obligatorios del alumno antes de continuar
+                const camposRequeridos = [
+                  'nombre', 'Ap', 'Am', 'email', 'password', 'genero', 'curp'
+                ];
+                const faltantes = camposRequeridos.filter(campo => !alumnoUsuario[campo]);
+                
+                if (faltantes.length > 0) {
+                  setError(`Por favor complete los siguientes campos obligatorios: ${faltantes.join(', ')}`);
+                  return;
+                }
+                
+                if (!alumno.especialidad || !alumno.semestre || !alumno.turno) {
+                  setError('Por favor seleccione especialidad, semestre y turno');
+                  return;
+                }
+
+                setError('');
+                setStep(2);
+              }}
+            >
+              Siguiente - Asignar Tutor
+            </button>
           </div>
         </div>
       )}
@@ -110,9 +239,15 @@ export default function AltaAlumnoForm() {
             </div>
           )}
 
-          <div className="flex justify-between">
+          <div className="flex justify-between mt-4">
             <button className="btn-secondary" onClick={()=>setStep(1)}>Atrás</button>
-            <button className="btn" disabled={loading} onClick={submit}>{loading?'Guardando...':'Guardar'}</button>
+            <button 
+              className="btn bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" 
+              disabled={loading} 
+              onClick={submit}
+            >
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
           </div>
         </div>
       )}

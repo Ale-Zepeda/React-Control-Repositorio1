@@ -21,7 +21,7 @@ async function createTutorUsuario(usuario) {
   return res.insertId
 }
 async function vincularTutorAlumno(idUsuarioTutor, idAlumno) {
-  await pool.query('INSERT INTO tutor (idUsuario, idAlumno) VALUES (?, ?)', [idUsuarioTutor, idAlumno])
+  await pool.query('INSERT INTO tutor (idUsuario, idAlumnos) VALUES (?, ?)', [idUsuarioTutor, idAlumno])
 }
 
 module.exports = {

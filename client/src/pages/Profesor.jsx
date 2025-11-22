@@ -1,6 +1,7 @@
 import { useAuth } from '../auth'
 import { api } from '../api'
 import { useEffect, useState } from 'react'
+import GruposView from '../components/GruposView'
 
 export default function Profesor() {
   const { token, user } = useAuth()
@@ -42,16 +43,31 @@ export default function Profesor() {
   const loadProfesorData = async () => {
     try {
       setLoading(true)
-      const [gruposData, materiasData] = await Promise.all([
-        api(`/api/profesores/${user?.idProfesor || user?.idUsuario}/grupos`, { token }),
+      const [materiasData] = await Promise.all([
         api(`/api/materias/profesor/${user?.idProfesor || user?.idUsuario}`, { token })
       ])
       
-      setGrupos(gruposData)
       setMaterias(materiasData)
       
-      if (gruposData.length > 0) {
-        setSelectedGrupo(gruposData[0])
+      const gruposData = await api(`/api/profesores/${user?.idProfesor || user?.idUsuario}/grupos`, { token })
+      setGrupos(gruposData)
+      
+      // With the new structure, we'll need to find the first grupo from the nested data
+      if (gruposData && Object.keys(gruposData).length > 0) {
+        const primeraEspecialidad = Object.keys(gruposData)[0]
+        const primerSemestreKey = Object.keys(gruposData[primeraEspecialidad].semestres)[0]
+        const primerSemestre = gruposData[primeraEspecialidad].semestres[primerSemestreKey]
+        const primerTurno = Object.keys(primerSemestre.turnos)[0]
+        const primerGrupo = primerSemestre.turnos[primerTurno][0]
+        
+        if (primerGrupo) {
+          setSelectedGrupo({
+            especialidad: primeraEspecialidad,
+            semestre: primerSemestreKey,
+            turno: primerTurno,
+            grupo: primerGrupo
+          })
+        }
       }
     } catch (e) {
       setError(e.message)
@@ -61,25 +77,25 @@ export default function Profesor() {
   }
 
   const loadGrupoData = async () => {
-    if (!selectedGrupo) return
+    if (!selectedGrupo || !selectedGrupo.grupo) return
     
     try {
       const promises = []
       
       if (activeTab === 'alumnos' || activeTab === 'calificaciones') {
-        promises.push(api(`/api/grupos/${selectedGrupo.idGrupo}/alumnos`, { token }))
+        promises.push(api(`/api/grupos/${selectedGrupo.grupo.idGrupo}/alumnos`, { token }))
       } else {
         promises.push(Promise.resolve([]))
       }
       
       if (activeTab === 'calificaciones') {
-        promises.push(api(`/api/grupos/${selectedGrupo.idGrupo}/calificaciones`, { token }))
+        promises.push(api(`/api/grupos/${selectedGrupo.grupo.idGrupo}/calificaciones`, { token }))
       } else {
         promises.push(Promise.resolve([]))
       }
       
       if (activeTab === 'avisos') {
-        promises.push(api(`/api/avisos/grupo/${selectedGrupo.idGrupo}`, { token }))
+        promises.push(api(`/api/avisos/grupo/${selectedGrupo.grupo.idGrupo}`, { token }))
       } else {
         promises.push(Promise.resolve([]))
       }
@@ -171,43 +187,14 @@ export default function Profesor() {
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Panel de Profesor</h2>
         
-        {/* Selector de grupo */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Seleccionar grupo:
-          </label>
-          <select
-            value={selectedGrupo?.idGrupo || ''}
-            onChange={(e) => {
-              const grupo = grupos.find(g => g.idGrupo === parseInt(e.target.value))
-              setSelectedGrupo(grupo)
-            }}
-            className="w-full md:w-auto px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {grupos.map(grupo => (
-              <option key={grupo.idGrupo} value={grupo.idGrupo}>
-                {grupo.nombre} - {grupo.grado}° {grupo.seccion}
-              </option>
-            ))}
-          </select>
-        </div>
+        <GruposView onGrupoSelect={(grupo) => {
+          setSelectedGrupo(grupo);
+          setActiveTab('alumnos');
+        }} />
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
-          </div>
-        )}
-
-        {selectedGrupo && (
-          <div className="bg-blue-50 p-4 rounded-lg mb-6">
-            <h3 className="text-lg font-medium mb-2">
-              {selectedGrupo.nombre} - {selectedGrupo.grado}° {selectedGrupo.seccion}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div><strong>Ciclo Escolar:</strong> {selectedGrupo.cicloEscolar}</div>
-              <div><strong>Nivel:</strong> {selectedGrupo.nivel || 'No especificado'}</div>
-              <div><strong>Alumnos:</strong> {alumnos.length}</div>
-            </div>
           </div>
         )}
       </div>
@@ -243,27 +230,48 @@ export default function Profesor() {
         {activeTab === 'grupos' && (
           <div>
             <h3 className="text-lg font-bold mb-4">Mis Grupos Asignados</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {grupos.map(grupo => (
-                <div key={grupo.idGrupo} className="border rounded-lg p-4 hover:bg-gray-50">
-                  <h4 className="font-medium text-lg mb-2">
-                    {grupo.nombre}
-                  </h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div><strong>Grado:</strong> {grupo.grado}° {grupo.seccion}</div>
-                    <div><strong>Ciclo:</strong> {grupo.cicloEscolar}</div>
-                    <div><strong>Nivel:</strong> {grupo.nivel || 'No especificado'}</div>
-                    <div><strong>Alumnos:</strong> {grupo.totalAlumnos || 'N/A'}</div>
+            <div className="space-y-6">
+              {Object.entries(grupos).map(([especialidad, data]) => (
+                <div key={especialidad} className="border rounded-lg p-4">
+                  <h4 className="font-medium text-xl mb-4">{especialidad}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(data.semestres).map(([semestre, semestreData]) => (
+                      <div key={`${especialidad}-${semestre}`} className="border rounded-lg p-4">
+                        <h5 className="font-medium text-lg mb-3">{semestreData.nombre}</h5>
+                        <div className="space-y-3">
+                          {Object.entries(semestreData.turnos).map(([turno, grupos]) => (
+                            <div key={`${especialidad}-${semestre}-${turno}`} className="border-t pt-2">
+                              <h6 className="font-medium mb-2">{turno}</h6>
+                              <div className="grid grid-cols-1 gap-2">
+                                {grupos.map(grupo => (
+                                  <button
+                                    key={grupo.idGrupo}
+                                    onClick={() => {
+                                      setSelectedGrupo({
+                                        especialidad,
+                                        semestre,
+                                        turno,
+                                        grupo
+                                      })
+                                      setActiveTab('alumnos')
+                                    }}
+                                    className="w-full text-left bg-gray-50 hover:bg-gray-100 p-2 rounded"
+                                  >
+                                    Grupo {grupo.idGrupo}
+                                    {grupo.totalAlumnos && (
+                                      <span className="text-sm text-gray-600 ml-2">
+                                        ({grupo.totalAlumnos} alumnos)
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedGrupo(grupo)
-                      setActiveTab('alumnos')
-                    }}
-                    className="mt-3 w-full bg-blue-500 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm"
-                  >
-                    Ver Detalles
-                  </button>
                 </div>
               ))}
             </div>
@@ -272,7 +280,9 @@ export default function Profesor() {
 
         {activeTab === 'alumnos' && selectedGrupo && (
           <div>
-            <h3 className="text-lg font-bold mb-4">Alumnos de {selectedGrupo.nombre}</h3>
+            <h3 className="text-lg font-bold mb-4">
+              Alumnos del Grupo {selectedGrupo.grupo.idGrupo} - {selectedGrupo.especialidad} - {selectedGrupo.semestre}° Semestre ({selectedGrupo.turno})
+            </h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -308,7 +318,9 @@ export default function Profesor() {
         {activeTab === 'calificaciones' && selectedGrupo && (
           <div>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Calificaciones de {selectedGrupo.nombre}</h3>
+              <h3 className="text-lg font-bold">
+                Calificaciones del Grupo {selectedGrupo.grupo.idGrupo} - {selectedGrupo.especialidad} - {selectedGrupo.semestre}° Semestre ({selectedGrupo.turno})
+              </h3>
               <button
                 onClick={() => setShowCalifModal(true)}
                 className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded"
@@ -359,7 +371,9 @@ export default function Profesor() {
         {activeTab === 'avisos' && selectedGrupo && (
           <div>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Avisos para {selectedGrupo.nombre}</h3>
+              <h3 className="text-lg font-bold">
+                Avisos para Grupo {selectedGrupo.grupo.idGrupo} - {selectedGrupo.especialidad} - {selectedGrupo.semestre}° Semestre ({selectedGrupo.turno})
+              </h3>
               <button
                 onClick={() => setShowAvisoModal(true)}
                 className="bg-yellow-500 hover:bg-yellow-700 text-white px-4 py-2 rounded"

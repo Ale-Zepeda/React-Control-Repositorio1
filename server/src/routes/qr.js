@@ -9,9 +9,9 @@ require('dotenv').config();
 
 const getDb = () => {
   return mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root', 
-    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST || 'mysql-escueladigital.mysql.database.azure.com',
+    user: process.env.DB_USER || 'ale', 
+    password: process.env.DB_PASSWORD || 'marianita.13.13',
     database: process.env.DB_NAME || 'controlescolar'
   });
 };
@@ -44,7 +44,7 @@ router.post('/generar', async (req, res) => {
     // Desactivar QR anteriores del alumno
     await new Promise((resolve, reject) => {
       db.query(
-        'UPDATE QR_Alumno SET activo = FALSE WHERE idAlumnos = ?', 
+        'UPDATE qr_alumno SET activo = FALSE WHERE idAlumnos = ?', 
         [idAlumnos], 
         (err) => {
           if (err) reject(err);
@@ -56,7 +56,7 @@ router.post('/generar', async (req, res) => {
     // Crear nuevo registro QR
     const qrId = await new Promise((resolve, reject) => {
       db.query(
-        'INSERT INTO QR_Alumno (idAlumnos, codigoQR, fechaExpiracion) VALUES (?, ?, ?)',
+        'INSERT INTO qr_alumno (idAlumnos, codigoQR, fechaExpiracion) VALUES (?, ?, ?)',
         [idAlumnos, codigoUnico, fechaExpiracion || null],
         (err, result) => {
           if (err) reject(err);
@@ -98,7 +98,7 @@ router.get('/alumno/:idAlumnos', async (req, res) => {
     const db = getDb();
     const [qrData] = await new Promise((resolve, reject) => {
       db.query(
-        `SELECT qa.* FROM QR_Alumno qa WHERE qa.idAlumnos = ? AND qa.activo = TRUE ORDER BY qa.idQR DESC LIMIT 1`,
+        `SELECT qa.* FROM qr_alumno qa WHERE qa.idAlumnos = ? AND qa.activo = TRUE ORDER BY qa.idQR DESC LIMIT 1`,
         [idAlumnos],
         (err, results) => {
           if (err) reject(err);
@@ -151,10 +151,10 @@ router.post('/escanear', async (req, res) => {
                ua.nombre as alumno_nombre, ua.Ap as alumno_apellido,
                ut.nombre as tutor_nombre, ut.Ap as tutor_apellido, ut.email as tutor_email, ut.telefono as tutor_telefono,
                t.idTutor
-        FROM QR_Alumno qa 
+        FROM qr_alumno qa 
         JOIN alumnos a ON qa.idAlumnos = a.idAlumnos
-        JOIN usuarios ua ON a.idUsuarios = ua.idUsuario
-        LEFT JOIN tutor t ON t.idAlumno = a.idAlumnos
+        JOIN usuarios ua ON a.idUsuario = ua.idUsuario
+        LEFT JOIN tutor t ON t.idAlumnos = a.idAlumnos
         LEFT JOIN usuarios ut ON t.idUsuario = ut.idUsuario
         WHERE qa.codigoQR = ? AND qa.activo = TRUE
         LIMIT 1
@@ -180,19 +180,80 @@ router.post('/escanear', async (req, res) => {
       return res.status(400).json({ error: 'Código QR expirado' });
     }
 
-    // 3. Registrar entrada/salida
-    const asistenciaId = await new Promise((resolve, reject) => {
-      db.query(`
-        INSERT INTO AsistenciaQR (idAlumno, tipoMovimiento, dispositivoScanner, ubicacion)
-        VALUES (?, ?, ?, ?)
-      `, [qrData.idAlumno, tipoMovimiento, dispositivo, ubicacion], (err, result) => {
-        if (err) reject(err);
-        else resolve(result.insertId);
+    // 4. Enviar notificación primero para obtener el idNotificacion
+    console.log('Enviando notificación...');
+    const notificacionId = await enviarNotificacion(qrData, tipoMovimiento, db);
+    if (!notificacionId) {
+      console.error('No se pudo crear la notificación');
+      return res.status(500).json({ error: 'Error al crear la notificación' });
+    }
+    console.log('Notificación creada con ID:', notificacionId);
+
+    // 3. Obtener o crear encargado de registro
+    console.log('Buscando encargado de registro...');
+    let [encargadoRegistro] = await new Promise((resolve, reject) => {
+      db.query('SELECT * FROM encargadoregistro LIMIT 1', [], (err, results) => {
+        if (err) {
+          console.error('Error buscando encargado:', err);
+          reject(err);
+        } else {
+          resolve(results);
+        }
       });
     });
 
-    // 4. Enviar notificación (simulada por ahora)
-    const notificacionId = await enviarNotificacion(qrData, tipoMovimiento, db);
+    // Si no existe un encargado, crear uno nuevo con un usuario de nivel 1 o 5
+    if (!encargadoRegistro) {
+      console.log('No se encontró encargado, buscando usuario autorizado...');
+      const [usuario] = await new Promise((resolve, reject) => {
+        db.query('SELECT idUsuario FROM usuarios WHERE idNivel IN (1, 5) LIMIT 1', [], (err, results) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      if (!usuario) {
+        return res.status(500).json({ error: 'No se encontró un usuario autorizado para ser encargado' });
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        db.query('INSERT INTO encargadoregistro (idUsuario) VALUES (?)', [usuario.idUsuario], (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+
+      encargadoRegistro = { idEncargadoRegistro: result.insertId };
+    }
+
+    console.log('Encargado de registro encontrado/creado:', encargadoRegistro);
+
+    let asistenciaId;
+    try {
+      console.log('Intentando insertar asistencia con:', {
+        notificacionId,
+        dispositivo,
+        idEncargado: encargadoRegistro.idEncargadoRegistro
+      });
+
+      asistenciaId = await new Promise((resolve, reject) => {
+        db.query(`
+        INSERT INTO asistenciaqr (idNotificacion, dispositivoScanner, idEncargadoRegistro)
+        VALUES (?, ?, ?)
+      `, [notificacionId, dispositivo, encargadoRegistro.idEncargadoRegistro], (err, result) => {
+          if (err) {
+            console.error('Error en inserción:', err);
+            reject(err);
+          } else {
+            console.log('Inserción exitosa, ID:', result.insertId);
+            resolve(result.insertId);
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Error completo:', error);
+      throw error; // Propagar el error para que sea capturado por el catch exterior
+    }
 
     // 5. Respuesta exitosa
     res.json({
@@ -220,10 +281,18 @@ router.get('/asistencias/alumno/:idAlumno', async (req, res) => {
     const { desde, hasta, limite = 50 } = req.query;
     
     let query = `
-      SELECT aq.*, a.nombre, a.apellido, a.matricula
-      FROM AsistenciaQR aq
-      JOIN Alumnos a ON aq.idAlumno = a.idAlumno
-      WHERE aq.idAlumno = ?
+      SELECT 
+        aq.idAsistencia,
+        aq.dispositivoScanner,
+        aq.idEncargadoRegistro,
+        n.*,
+        u.nombre,
+        u.Ap as apellido
+      FROM asistenciaqr aq
+      JOIN notificacionesenviadas n ON aq.idNotificacion = n.idNotificacion
+      JOIN alumnos a ON n.idAlumnos = a.idAlumnos
+      JOIN usuarios u ON a.idUsuario = u.idUsuario
+      WHERE n.idAlumnos = ?
     `;
     const params = [idAlumno];
 
@@ -264,11 +333,19 @@ router.get('/asistencias/dia/:fecha', async (req, res) => {
     const db = getDb();
     const registros = await new Promise((resolve, reject) => {
       db.query(`
-        SELECT aq.*, a.nombre as nombreAlumno, a.apellido as apellidoAlumno, a.matricula
-        FROM AsistenciaQR aq
-        JOIN Alumnos a ON aq.idAlumno = a.idAlumno
-        WHERE DATE(aq.fechaHora) = ?
-        ORDER BY aq.fechaHora DESC
+        SELECT 
+          aq.idAsistencia,
+          aq.dispositivoScanner,
+          aq.idEncargadoRegistro,
+          n.*,
+          u.nombre as nombreAlumno,
+          u.Ap as apellidoAlumno
+        FROM asistenciaqr aq
+        JOIN notificacionesenviadas n ON aq.idNotificacion = n.idNotificacion
+        JOIN alumnos a ON n.idAlumnos = a.idAlumnos
+        JOIN usuarios u ON a.idUsuario = u.idUsuario
+        WHERE DATE(n.fechaEnvio) = ?
+        ORDER BY n.fechaEnvio DESC
       `, [fecha], (err, results) => {
         if (err) reject(err);
         else resolve(results);
@@ -294,39 +371,63 @@ router.get('/asistencias/dia/:fecha', async (req, res) => {
 // 🎯 Función auxiliar para enviar notificaciones
 async function enviarNotificacion(alumnoData, tipoMovimiento, db) {
   try {
-    if (!alumnoData.tutor_email) {
-      console.log('⚠️  Sin email de tutor para notificar');
-      return null; // No hay tutor o email para notificar
-    }
+    console.log('🔔 Iniciando proceso de notificación:', {
+      idAlumnos: alumnoData.idAlumnos,
+      idTutor: alumnoData.idTutor,
+      tutor_email: alumnoData.tutor_email,
+      tipoMovimiento: tipoMovimiento
+    });
 
+    // Siempre intentar crear la notificación, incluso sin email
+    const mensaje = `${alumnoData.alumno_nombre} ${alumnoData.alumno_apellido} registró ${tipoMovimiento} a las ${new Date().toLocaleTimeString()}`;
+    
+    // Verificar que el alumno tenga tutor asignado
+    if (!alumnoData.idTutor) {
+      console.error('❌ Error: El alumno no tiene tutor asignado');
+      throw new Error('El alumno no tiene un tutor asignado. No se puede registrar la asistencia.');
+    }
+    
     // Guardar notificación en base de datos
     const notificacionId = await new Promise((resolve, reject) => {
-      const mensaje = `${alumnoData.alumno_nombre} ${alumnoData.alumno_apellido} registró ${tipoMovimiento} a las ${new Date().toLocaleTimeString()}`;
+      console.log('💾 Guardando notificación en BD:', {
+        idAlumnos: alumnoData.idAlumnos,
+        idTutor: alumnoData.idTutor,
+        mensaje: mensaje
+      });
       
       db.query(`
-        INSERT INTO NotificacionesEnviadas 
-        (idAlumnos, idTutor, tipoMovimiento, mensaje, metodoEnvio, estadoEnvio)
-        VALUES (?, ?, ?, ?, 'email', 'pendiente')
+        INSERT INTO notificacionesenviadas 
+        (idAlumnos, idTutor, tipoMovimiento, mensaje, fechaEnvio, estadoEnvio)
+        VALUES (?, ?, ?, ?, NOW(), 'pendiente')
       `, [
         alumnoData.idAlumnos, 
         alumnoData.idTutor, 
         tipoMovimiento, 
         mensaje
       ], (err, result) => {
-        if (err) reject(err);
-        else resolve(result.insertId);
+        if (err) {
+          console.error('❌ Error insertando notificación:', err);
+          reject(err);
+        } else {
+          console.log('✅ Notificación guardada con ID:', result.insertId);
+          resolve(result.insertId);
+        }
       });
     });
 
-    // Aquí se integraría con EmailJS o servicio de email
-    console.log(`📧 Notificación enviada a ${alumnoData.tutor_email}: ${alumnoData.alumno_nombre} - ${tipoMovimiento}`);
+    console.log(`📧 Notificación procesada para ${alumnoData.tutor_email || 'sin email'}: ${alumnoData.alumno_nombre} - ${tipoMovimiento}`);
     
     return notificacionId;
     
   } catch (error) {
-    console.error('Error enviando notificación:', error);
+    console.error('💥 Error en enviarNotificacion:', error);
     return null;
   }
 }
+
+// Ruta de prueba simple
+router.get('/test', (req, res) => {
+  res.json({ message: 'Rutas QR funcionando correctamente', timestamp: new Date() });
+});
 
 module.exports = router;

@@ -2,9 +2,9 @@ const mysql = require('mysql2');
 require('dotenv').config();
 
 const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST || 'mysql-escueladigital.mysql.database.azure.com',
+  user: process.env.DB_USER || 'ale',
+  password: process.env.DB_PASSWORD || 'marianita.13.13',
   database: process.env.DB_NAME || 'controlescolar'
 });
 
@@ -46,7 +46,7 @@ async function debugQR() {
           FROM QR_Alumno qa 
           JOIN alumnos a ON qa.idAlumnos = a.idAlumnos
           JOIN usuarios ua ON a.idUsuarios = ua.idUsuario
-          LEFT JOIN tutor t ON t.idAlumno = a.idAlumnos
+          LEFT JOIN tutor t ON t.idAlumnos = a.idAlumnos
           LEFT JOIN usuarios ut ON t.idUsuario = ut.idUsuario
           WHERE qa.codigoQR = ? AND qa.activo = TRUE
           LIMIT 1

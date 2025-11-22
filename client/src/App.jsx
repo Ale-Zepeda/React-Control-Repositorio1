@@ -30,17 +30,17 @@ function Nav() {
                     Admin
                   </Link>
                 )}
-                {(user.rol === 'profesor' || user.rol === 'admin') && (
+                {user.rol === 'profesor' && (
                   <Link to="/profesor" className="text-blue-200 hover:text-white px-3 py-2 rounded-md">
                     Profesor
                   </Link>
                 )}
-                {(user.rol === 'tutor' || user.rol === 'admin') && (
+                {user.rol === 'tutor' && (
                   <Link to="/tutor" className="text-blue-200 hover:text-white px-3 py-2 rounded-md">
                     Tutor
                   </Link>
                 )}
-                {(user.rol === 'alumno' || user.rol === 'admin') && (
+                {user.rol === 'alumno' && (
                   <>
                     <Link to="/alumno" className="text-blue-200 hover:text-white px-3 py-2 rounded-md">
                       Alumno

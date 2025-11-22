@@ -1,13 +1,6 @@
 const express = require('express');
-const mysql = require('mysql2');
 const router = express.Router();
-
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'controlescolar'
-});
+const db = require('../config/db'); // Corrige la ruta de importación
 
 // GET - todos los niveles
 router.get('/', (req, res) => {

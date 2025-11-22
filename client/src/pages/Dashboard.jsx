@@ -4,11 +4,15 @@ import { Link } from 'react-router-dom'
 export default function Dashboard() {
   const { user } = useAuth()
   
-  const menuItems = [
+  const menuItems = user?.rol === 'admin' ? [
     { role: 'admin', title: 'Panel Administrador', path: '/admin', icon: '⚙️', description: 'Gestión completa del sistema' },
+    { role: 'admin', title: 'Alumnos', path: '/alumnos', icon: '👨‍🎓', description: 'Gestión de alumnos' },
+    { role: 'admin', title: 'Scanner QR', path: '/scanner', icon: '📷', description: 'Escanear códigos QR para asistencia' }
+  ] : [
     { role: 'profesor', title: 'Panel Profesor', path: '/profesor', icon: '👨‍🏫', description: 'Gestión de clases y calificaciones' },
     { role: 'tutor', title: 'Panel Tutor', path: '/tutor', icon: '👥', description: 'Seguimiento de alumnos' },
-    { role: 'alumno', title: 'Panel Alumno', path: '/alumno', icon: '🎓', description: 'Consulta de información académica' }
+    { role: 'alumno', title: 'Panel Alumno', path: '/alumno', icon: '🎓', description: 'Consulta de información académica' },
+    { role: 'alumno', title: 'Mi QR', path: '/mi-qr', icon: '📱', description: 'Ver mi código QR' }
   ]
   
   return (
@@ -39,9 +43,9 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {menuItems
-              .filter(item => user.rol === 'admin' || user.rol === item.role)
+              .filter(item => user.rol === item.role)
               .map((item, index) => (
                 <Link key={index} to={item.path} className="card p-6 hover:shadow-lg transition-shadow group">
                   <div className="flex items-center mb-4">

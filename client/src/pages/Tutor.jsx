@@ -9,12 +9,14 @@ export default function Tutor() {
   const [calificaciones, setCalificaciones] = useState([])
   const [avisos, setAvisos] = useState([])
   const [asistencias, setAsistencias] = useState([])
+  const [notificaciones, setNotificaciones] = useState([])
   const [activeTab, setActiveTab] = useState('general')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     loadHijos()
+    loadNotificaciones()
   }, [token, user])
 
   useEffect(() => {
@@ -26,15 +28,33 @@ export default function Tutor() {
   const loadHijos = async () => {
     try {
       setLoading(true)
-      const data = await api(`/api/tutores/${user?.idTutor || user?.idUsuario}/alumnos`, { token })
+      
+      // Determinar ID del tutor - Siempre usar idUsuario para la consulta
+      const tutorId = user?.idUsuario || user?.id
+      console.log('Cargando alumnos para tutor ID:', tutorId)
+      
+      const data = await api(`/api/tutores/${tutorId}/alumnos`, { token })
       setHijos(data)
       if (data.length > 0) {
         setSelectedHijo(data[0])
       }
+      setError('') // Limpiar errores previos
     } catch (e) {
+      console.error('Error cargando alumnos:', e)
       setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadNotificaciones = async () => {
+    try {
+      const tutorId = user?.idUsuario || user?.id
+      const data = await api(`/api/tutores/${tutorId}/notificaciones`, { token })
+      setNotificaciones(data)
+    } catch (e) {
+      console.error('Error cargando notificaciones:', e)
+      setNotificaciones([])
     }
   }
 
@@ -57,7 +77,7 @@ export default function Tutor() {
       }
       
       if (activeTab === 'asistencias' || activeTab === 'general') {
-        promises.push(api(`/api/alumnos/${selectedHijo.idAlumno}/asistencias`, { token }))
+        promises.push(api(`/api/asistenciaqr/alumno/${selectedHijo.idAlumno}`, { token }))
       } else {
         promises.push(Promise.resolve([]))
       }
@@ -100,25 +120,35 @@ export default function Tutor() {
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Panel de Tutor</h2>
         
         {/* Selector de hijo */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Seleccionar alumno:
-          </label>
-          <select
-            value={selectedHijo?.idAlumno || ''}
-            onChange={(e) => {
-              const hijo = hijos.find(h => h.idAlumno === parseInt(e.target.value))
-              setSelectedHijo(hijo)
-            }}
-            className="w-full md:w-auto px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {hijos.map(hijo => (
-              <option key={hijo.idAlumno} value={hijo.idAlumno}>
-                {hijo.nombre} {hijo.apellido} - {hijo.matricula}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Si solo hay un hijo, no mostramos el selector */}
+        {hijos.length === 1 ? (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900">
+              Alumno: {hijos[0].nombre} {hijos[0].apellido}
+            </h3>
+            <p className="text-sm text-gray-600">Matrícula: {hijos[0].matricula}</p>
+          </div>
+        ) : (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Seleccionar alumno:
+            </label>
+            <select
+              value={selectedHijo?.idAlumno || ''}
+              onChange={(e) => {
+                const hijo = hijos.find(h => h.idAlumno === parseInt(e.target.value))
+                setSelectedHijo(hijo)
+              }}
+              className="w-full md:w-auto px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {hijos.map(hijo => (
+                <option key={hijo.idAlumno} value={hijo.idAlumno}>
+                  {hijo.nombre} {hijo.apellido} - {hijo.matricula}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -148,7 +178,8 @@ export default function Tutor() {
               { id: 'general', name: 'Resumen General' },
               { id: 'calificaciones', name: 'Calificaciones' },
               { id: 'asistencias', name: 'Asistencias' },
-              { id: 'avisos', name: 'Avisos' }
+              { id: 'avisos', name: 'Avisos' },
+              { id: 'notificaciones', name: `Notificaciones ${notificaciones.length > 0 ? `(${notificaciones.length})` : ''}` }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -187,10 +218,36 @@ export default function Tutor() {
               
               <div className="bg-green-50 p-4 rounded-lg">
                 <h4 className="font-medium text-green-800 mb-2">Asistencias</h4>
-                <div className="text-sm">
-                  <div>Presentes: {asistencias.filter(a => a.estado === 'presente').length}</div>
-                  <div>Faltas: {asistencias.filter(a => a.estado === 'ausente').length}</div>
-                  <div>Tardanzas: {asistencias.filter(a => a.estado === 'tarde').length}</div>
+                <div className="text-sm space-y-2">
+                  {/* Asistencia del día */}
+                  {asistencias.length > 0 && asistencias[0] && (
+                    <div className="border-b pb-2">
+                      <div className="font-medium">Hoy:</div>
+                      <div className={`mt-1 inline-block px-2 py-1 rounded text-xs ${
+                        asistencias[0].estado === 'presente' ? 'bg-green-100 text-green-800' :
+                        asistencias[0].estado === 'tarde' ? 'bg-yellow-100 text-yellow-800' :
+                        asistencias[0].estado === 'pendiente' ? 'bg-gray-100 text-gray-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {asistencias[0].estado === 'presente' ? '✓ Presente' :
+                         asistencias[0].estado === 'tarde' ? '⚠ Tarde' :
+                         asistencias[0].estado === 'pendiente' ? '⏳ Pendiente' :
+                         '✕ Ausente'}
+                      </div>
+                      {asistencias[0].hora && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          Hora: {asistencias[0].hora}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Resumen de la semana */}
+                  <div>
+                    <div className="font-medium mb-1">Últimos 7 días:</div>
+                    <div>Presentes: {asistencias.filter(a => a.estado === 'presente').length}</div>
+                    <div>Faltas: {asistencias.filter(a => a.estado === 'ausente').length}</div>
+                    <div>Tardanzas: {asistencias.filter(a => a.estado === 'tarde').length}</div>
+                  </div>
                 </div>
               </div>
               
@@ -316,6 +373,63 @@ export default function Tutor() {
                 <p className="text-center py-4 text-gray-600">No hay avisos disponibles</p>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'notificaciones' && (
+          <div>
+            <h3 className="text-lg font-bold mb-4">Notificaciones de Asistencia</h3>
+            <div className="space-y-3">
+              {notificaciones.map(notif => (
+                <div key={notif.idNotificacion} className="border rounded-lg p-4 bg-white hover:bg-gray-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        notif.tipoMovimiento === 'entrada' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {notif.tipoMovimiento === 'entrada' ? '🟢 Entrada' : '🔵 Salida'}
+                      </span>
+                      <span className="font-medium">
+                        {notif.alumnoNombre} {notif.alumnoApellido}
+                      </span>
+                    </div>
+                    <div className="text-right text-sm text-gray-500">
+                      <div>{new Date(notif.fechaEnvio).toLocaleDateString()}</div>
+                      <div>{new Date(notif.fechaEnvio).toLocaleTimeString()}</div>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 text-sm">{notif.mensaje}</p>
+                  <div className="mt-2 flex justify-between items-center">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      notif.estadoEnvio === 'enviado' ? 'bg-green-50 text-green-600' :
+                      notif.estadoEnvio === 'pendiente' ? 'bg-yellow-50 text-yellow-600' :
+                      'bg-red-50 text-red-600'
+                    }`}>
+                      {notif.metodoEnvio} - {notif.estadoEnvio}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {notificaciones.length === 0 && (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 text-4xl mb-2">🔔</div>
+                  <p className="text-gray-600">No hay notificaciones de asistencia aún</p>
+                  <p className="text-sm text-gray-500 mt-1">Las notificaciones aparecerán cuando los alumnos escaneen su código QR</p>
+                </div>
+              )}
+            </div>
+            {notificaciones.length > 0 && (
+              <div className="mt-6 text-center">
+                <button 
+                  onClick={loadNotificaciones}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  🔄 Actualizar notificaciones
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

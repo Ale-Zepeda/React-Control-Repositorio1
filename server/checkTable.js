@@ -2,9 +2,9 @@ const mysql = require('mysql2');
 require('dotenv').config();
 
 const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '1309',
+  host: process.env.DB_HOST || 'mysql-escueladigital.mysql.database.azure.com',
+  user: process.env.DB_USER || 'ale',
+  password: process.env.DB_PASSWORD || 'marianita.13.13',
   database: process.env.DB_NAME || 'controlescolar'
 });
 

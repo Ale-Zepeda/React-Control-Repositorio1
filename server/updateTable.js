@@ -1,12 +1,5 @@
-const mysql = require('mysql2');
+const db = require('./src/config/db'); // Corrige la ruta de importación
 require('dotenv').config();
-
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '1309',
-  database: process.env.DB_NAME || 'controlescolar'
-});
 
 console.log('🔄 Conectando a la base de datos...');
 

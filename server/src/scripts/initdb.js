@@ -8,9 +8,9 @@ async function main() {
   const sqlPath = path.join(__dirname, 'schema.sql');
   const schema = fs.readFileSync(sqlPath, 'utf8');
   const config = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST || 'mysql-escueladigital.mysql.database.azure.com',
+    user: process.env.DB_USER || 'ale',
+    password: process.env.DB_PASSWORD || 'marianita.13.13',
     port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
     multipleStatements: true
   };

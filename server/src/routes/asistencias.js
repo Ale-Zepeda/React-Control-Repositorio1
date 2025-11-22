@@ -3,9 +3,9 @@ const mysql = require('mysql2');
 const router = express.Router();
 
 const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST || 'mysql-escueladigital.mysql.database.azure.com',
+  user: process.env.DB_USER || 'ale',
+  password: process.env.DB_PASSWORD || 'marianita.13.13',
   database: process.env.DB_NAME || 'controlescolar'
 });
 
@@ -13,11 +13,20 @@ const db = mysql.createConnection({
 router.get('/dia/:fecha', (req, res) => {
   const { fecha } = req.params;
   const sql = `
-    SELECT aq.*, a.idAlumnos, a.idUsuarios
+    SELECT 
+      aq.idAsistencia,
+      aq.dispositivoScanner,
+      aq.idEncargadoRegistro,
+      n.*,
+      u.nombre as nombreAlumno,
+      u.Ap as apellidoAlumno,
+      CONCAT(u.nombre, ' ', IFNULL(u.Ap,''), ' ', IFNULL(u.Am,'')) as nombreCompleto
     FROM asistenciaqr aq
-    JOIN alumnos a ON aq.idAlumnos = a.idAlumnos
-    WHERE DATE(aq.fechaHora) = ?
-    ORDER BY aq.fechaHora DESC
+    JOIN notificacionesenviadas n ON aq.idNotificacion = n.idNotificacion
+    JOIN alumnos a ON n.idAlumnos = a.idAlumnos
+    JOIN usuarios u ON a.idUsuario = u.idUsuario
+    WHERE DATE(n.fechaEnvio) = ?
+    ORDER BY n.fechaEnvio DESC
   `;
   db.query(sql, [fecha], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -35,7 +44,16 @@ router.get('/dia/:fecha', (req, res) => {
 // GET - Asistencias por alumno (compatibilidad)
 router.get('/alumno/:idAlumno', (req, res) => {
   const { idAlumno } = req.params;
-  db.query('SELECT * FROM asistenciaqr WHERE idAlumnos = ? ORDER BY fechaHora DESC', [idAlumno], (err, results) => {
+  db.query(`
+    SELECT 
+      aq.idAsistencia,
+      aq.dispositivoScanner,
+      aq.idEncargadoRegistro,
+      n.*
+    FROM asistenciaqr aq 
+    JOIN notificacionesenviadas n ON aq.idNotificacion = n.idNotificacion 
+    WHERE n.idAlumnos = ? 
+    ORDER BY n.fechaEnvio DESC`, [idAlumno], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
